@@ -1,0 +1,20 @@
+{
+    "name": "NAVDatabase.Amx.SamsungSyncMasterDisplay",
+    "description": "NetLinx module for controlling Samsung SyncMaster displays",
+    "version": "1.0.0",
+    "license": "MIT",
+    "files": ["src/*.axs", "src/*.tko", "lib/*.axi", "SymLink.ps1", "LICENSE", "README.md"],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Norgate-AV/NAVDatabase.Amx.SamsungSyncMasterDisplay.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Norgate-AV/NAVDatabase.Amx.SamsungSyncMasterDisplay/issues"
+    },
+    "dependencies": [
+        {
+            "version": "^1.25.0",
+            "url": "github.com/Norgate-AV/NAVFoundation.Amx"
+        }
+    ]
+}
