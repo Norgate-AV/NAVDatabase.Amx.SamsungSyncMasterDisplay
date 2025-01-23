@@ -1,6 +1,6 @@
 MODULE_NAME='mSamsungSyncMasterDisplay'     (
                                                 dev vdvObject,
-                                                dev vdvControl
+                                                dev vdvCommObject
                                             )
 
 (***********************************************************)
@@ -185,8 +185,8 @@ DEFINE_MUTUALLY_EXCLUSIVE
 (* EXAMPLE: DEFINE_FUNCTION <RETURN_TYPE> <NAME> (<PARAMETERS>) *)
 (* EXAMPLE: DEFINE_CALL '<NAME>' (<PARAMETERS>) *)
 define_function SendCommand(char cParam[]) {
-     NAVLog("'Command to ',NAVStringSurroundWith(NAVDeviceToString(vdvControl), '[', ']'),': [',cParam,']'")
-    send_command vdvControl,"cParam"
+     NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'Command to ',NAVStringSurroundWith(NAVDeviceToString(vdvCommObject), '[', ']'),': [',cParam,']'")
+    send_command vdvCommObject,"cParam"
 }
 
 define_function BuildCommand(char cHeader[], char cCmd[]) {
@@ -216,14 +216,14 @@ define_function Process() {
     while (length_array(cRxBuffer) && NAVContains(cRxBuffer,'>')) {
     cTemp = remove_string(cRxBuffer,"'>'",1)
     if (length_array(cTemp)) {
-        NAVLog("'Parsing String From ',NAVStringSurroundWith(NAVDeviceToString(vdvControl), '[', ']'),': [',cTemp,']'")
+        NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'Parsing String From ',NAVStringSurroundWith(NAVDeviceToString(vdvCommObject), '[', ']'),': [',cTemp,']'")
         if (NAVContains(cRxBuffer, cTemp)) { cRxBuffer = "''" }
         select {
         active (NAVStartsWith(cTemp,'REGISTER')): {
             iID = atoi(NAVGetStringBetween(cTemp,'<','>'))
             if (iID) { BuildCommand('REGISTER','') }
-            NAVLog("'SAMSUNG_REGISTER_REQUESTED<',itoa(iID),'>'")
-            NAVLog("'SAMSUNG_REGISTER<',itoa(iID),'>'")
+            NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'SAMSUNG_REGISTER_REQUESTED<',itoa(iID),'>'")
+            NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'SAMSUNG_REGISTER<',itoa(iID),'>'")
         }
         active (NAVStartsWith(cTemp,'INIT')): {
             //if (cUnitGroup == '*' || cUnitID == '*') {
@@ -232,7 +232,7 @@ define_function Process() {
                 //BuildCommand('INIT_DONE','')
             //}
            // }else {
-            NAVLog("'SAMSUNG_INIT_REQUESTED<',itoa(iID),'>'")
+            NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'SAMSUNG_INIT_REQUESTED<',itoa(iID),'>'")
             switch (iCommMode) {
             case COMM_MODE_TWO_WAY: {
                 module.Device.IsInitialized = false
@@ -242,34 +242,34 @@ define_function Process() {
             case COMM_MODE_ONE_WAY_BASIC: {
                 module.Device.IsInitialized = true
                 BuildCommand('INIT_DONE','')
-                NAVLog("'SAMSUNG_INIT_DONE<',itoa(iID),'>'")
+                NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'SAMSUNG_INIT_DONE<',itoa(iID),'>'")
             }
             }
 
             //}
         }
         active (NAVStartsWith(cTemp,'START_POLLING')): {
-            NAVLog('SAMSUNG_POLLING_REQUESTED<>')
-            timeline_create(TL_DRIVE,ltDrive,length_array(ltDrive),TIMELINE_ABSOLUTE,TIMELINE_REPEAT)
+            NAVErrorLog(NAV_LOG_LEVEL_DEBUG, 'SAMSUNG_POLLING_REQUESTED!=')
+            NAVTimelineStart(TL_DRIVE,ltDrive,TIMELINE_ABSOLUTE,TIMELINE_REPEAT)
         }
         active (NAVStartsWith(cTemp,'RESPONSE_MSG')): {
             stack_var char cResponseRequestMess[NAV_MAX_BUFFER]
             stack_var char cResponseMess[NAV_MAX_BUFFER]
             stack_var integer iResponseUnitID
-            //NAVLog("'RESPONCE_MSG_RECEIVED<',itoa(iID),'>: ',cTemp")
+            //NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'RESPONCE_MSG_RECEIVED<',itoa(iID),'>: ',cTemp")
             TimeOut()
             cResponseRequestMess = NAVGetStringBetween(cTemp,'<','|')
             cResponseMess = NAVGetStringBetween(cTemp,'|','>')
             BuildCommand('RESPONSE_OK',cResponseRequestMess)
             select {
             active (NAVContains(cResponseMess,"$AA,$FF,iUnitID,$09,'A',$00")): {
-                NAVLog('SAMSUNG_DISPLAY_GOT_FULL_RESPONSE<>')
+                NAVErrorLog(NAV_LOG_LEVEL_DEBUG, 'SAMSUNG_DISPLAY_GOT_FULL_RESPONSE!=')
                 switch (cResponseMess[7]) {
                 case true: { uDisplay.PowerState.Actual = ACTUAL_POWER_ON }
                 case false: { uDisplay.PowerState.Actual = ACTUAL_POWER_OFF }
                 }
 
-                if (uDisplay.Volume.Level.Actual <> cResponseMess[8]) {
+                if (uDisplay.Volume.Level.Actual != cResponseMess[8]) {
                 uDisplay.Volume.Level.Actual = cResponseMess[8]
                 send_level vdvObject,1,uDisplay.Volume.Level.Actual * 255 / (MAX_VOLUME - MIN_VOLUME)
                 }
@@ -294,9 +294,9 @@ define_function Process() {
                 if (!module.Device.IsInitialized) {
                 module.Device.IsInitialized = true
                 BuildCommand('INIT_DONE','')
-                //NAVLog("'INIT_DONE<',itoa(iID),'>'")
-                NAVLog("'SAMSUNG_INIT_DONE<',itoa(iID),'>'")
-                //timeline_create(TL_DRIVE,ltDrive,length_array(ltDrive),TIMELINE_ABSOLUTE,TIMELINE_REPEAT)
+                //NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'INIT_DONE<',itoa(iID),'>'")
+                NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'SAMSUNG_INIT_DONE<',itoa(iID),'>'")
+                //NAVTimelineStart(TL_DRIVE,ltDrive,TIMELINE_ABSOLUTE,TIMELINE_REPEAT)
                 }
             }
             }
@@ -394,12 +394,12 @@ define_function Drive() {
         case COMM_MODE_ONE_WAY:
         case COMM_MODE_TWO_WAY: {
             if (iCommandLockOut) { return }
-            if (uDisplay.PowerState.Required && (uDisplay.PowerState.Required == uDisplay.PowerState.Actual)) { uDisplay.PowerState.Required = 0;  NAVLog('SAMSUNG_RESET_POWER_REQUEST<>') return }
+            if (uDisplay.PowerState.Required && (uDisplay.PowerState.Required == uDisplay.PowerState.Actual)) { uDisplay.PowerState.Required = 0;  NAVErrorLog(NAV_LOG_LEVEL_DEBUG, 'SAMSUNG_RESET_POWER_REQUEST!=') return }
             if (uDisplay.Input.Required && (uDisplay.Input.Required == uDisplay.Input.Actual)) { uDisplay.Input.Required = 0; return }
             if (uDisplay.Volume.Mute.Required && (uDisplay.Volume.Mute.Required == uDisplay.Volume.Mute.Actual)) { uDisplay.Volume.Mute.Required = 0; return }
             if (uDisplay.Volume.Level.Required >= 0 && (uDisplay.Volume.Level.Required == uDisplay.Volume.Level.Actual)) { uDisplay.Volume.Level.Required = -1; return }
 
-            if (uDisplay.Volume.Mute.Required && (uDisplay.Volume.Mute.Required <> uDisplay.Volume.Mute.Actual) && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && module.Device.IsCommunicating) {
+            if (uDisplay.Volume.Mute.Required && (uDisplay.Volume.Mute.Required != uDisplay.Volume.Mute.Actual) && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && module.Device.IsCommunicating) {
             SetMute(uDisplay.Volume.Mute.Required)
             iCommandLockOut = true
             wait 20 iCommandLockOut = false
@@ -407,7 +407,7 @@ define_function Drive() {
             return
             }
 
-            if (uDisplay.PowerState.Required && (uDisplay.PowerState.Required <> uDisplay.PowerState.Actual) && module.Device.IsCommunicating) {
+            if (uDisplay.PowerState.Required && (uDisplay.PowerState.Required != uDisplay.PowerState.Actual) && module.Device.IsCommunicating) {
             SetPower(uDisplay.PowerState.Required)
             iCommandLockOut = true
             switch (iCommMode) {
@@ -448,7 +448,7 @@ define_function Drive() {
             return
             }
 
-            if (uDisplay.Input.Required && (uDisplay.Input.Required  <> uDisplay.Input.Actual) && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && module.Device.IsCommunicating) {
+            if (uDisplay.Input.Required && (uDisplay.Input.Required  != uDisplay.Input.Actual) && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && module.Device.IsCommunicating) {
             SetInput(uDisplay.Input.Required)
             if (iCommMode == COMM_MODE_ONE_WAY) {    //One-Way
                 uDisplay.Input.Actual = uDisplay.Input.Required    //Emulate
@@ -464,7 +464,7 @@ define_function Drive() {
             if ([vdvObject,VOL_DN] && uDisplay.PowerState.Actual == ACTUAL_POWER_ON) { uDisplay.Volume.Level.Required-- }
 
             /*
-            if (uDisplay.Volume.Level.Required && (uDisplay.Volume.Level.Required <> uDisplay.Volume.Level.Actual) && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && module.Device.IsCommunicating) {
+            if (uDisplay.Volume.Level.Required && (uDisplay.Volume.Level.Required != uDisplay.Volume.Level.Actual) && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && module.Device.IsCommunicating) {
             SetVolume(uDisplay.Volume.Level.Required)
             iCommandLockOut = true
             wait 5 iCommandLockOut = false
@@ -492,7 +492,7 @@ define_function Drive() {
 (*                STARTUP CODE GOES BELOW                  *)
 (***********************************************************)
 DEFINE_START {
-    create_buffer vdvControl,cRxBuffer
+    create_buffer vdvCommObject,cRxBuffer
     uDisplay.Volume.Level.Required = -1
     uDisplay.Volume.Level.Actual = -1
     iModuleEnabled = true
@@ -503,7 +503,7 @@ DEFINE_START {
 (*                THE EVENTS GO BELOW                      *)
 (***********************************************************)
 DEFINE_EVENT
-data_event[vdvControl] {
+data_event[vdvCommObject] {
     string: {
     if (iModuleEnabled) {
         if (!iSemaphore) {
@@ -525,7 +525,7 @@ data_event[vdvObject] {
         stack_var char cCmdHeader[NAV_MAX_CHARS]
     stack_var char cCmdParam[3][NAV_MAX_CHARS]
     if (iModuleEnabled) {
-         NAVLog("'Command from ',NAVStringSurroundWith(NAVDeviceToString(data.device), '[', ']'),': [',data.text,']'")
+         NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'Command from ',NAVStringSurroundWith(NAVDeviceToString(data.device), '[', ']'),': [',data.text,']'")
         cCmdHeader = DuetParseCmdHeader(data.text)
         cCmdParam[1] = DuetParseCmdParam(data.text)
         cCmdParam[2] = DuetParseCmdParam(data.text)
@@ -585,7 +585,7 @@ data_event[vdvObject] {
             case 'VGA': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_PC_1; Drive()
                 }
                 }
@@ -600,7 +600,7 @@ data_event[vdvObject] {
             case 'DVI': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_DVI_1; Drive()
                 }
                 }
@@ -608,7 +608,7 @@ data_event[vdvObject] {
             case 'COMPOSITE': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_AV_1; Drive()
                 }
                 //case '2': { uDisplay.PowerState.Required = REQUIRED_POWER_ON; uDisplay.Input.Required = REQUIRED_INPUT_VIDEO_2; Drive() }
@@ -617,7 +617,7 @@ data_event[vdvObject] {
             case 'S-VIDEO': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_SVIDEO_1; Drive()
                 }
                 }
@@ -632,7 +632,7 @@ data_event[vdvObject] {
             case 'COMPONENT': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_BNC_1; Drive()
                 }
                 //case '2': { uDisplay.PowerState.Required = REQUIRED_POWER_ON; uDisplay.Input.Required = REQUIRED_INPUT_COMPONENT_2; Drive() }
@@ -649,11 +649,11 @@ data_event[vdvObject] {
             case 'DISPLAYPORT': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_DISPLAYPORT_1; Drive()
                 }
                 case '2': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_DISPLAYPORT_2; Drive()
                 }
                 }
@@ -662,12 +662,12 @@ data_event[vdvObject] {
             case 'HDMI': {
                 switch (cCmdParam[2]) {
                 case '1': {
-                    NAVLog('SAMSUNG_REQUEST_HDMI,1<>')
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON;  NAVLog('SAMSUNG_REQUEST_POWER_ON<>')}
+                    NAVErrorLog(NAV_LOG_LEVEL_DEBUG, 'SAMSUNG_REQUEST_HDMI,1!=')
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON;  NAVErrorLog(NAV_LOG_LEVEL_DEBUG, 'SAMSUNG_REQUEST_POWER_ON!=')}
                     uDisplay.Input.Required = REQUIRED_INPUT_HDMI_1; Drive()
                 }
                 case '2': {
-                    if (iCommMode <> COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
+                    if (iCommMode != COMM_MODE_ONE_WAY_BASIC) { uDisplay.PowerState.Required = REQUIRED_POWER_ON }
                     uDisplay.Input.Required = REQUIRED_INPUT_HDMI_PC_1; Drive()
                 }
                 }
